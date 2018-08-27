@@ -4,9 +4,9 @@ import Chart from 'chart.js';
 import HitBox from './hitbox';
 import utils from './utils';
 import positioners from './positioners';
-import autoAdjuster from './autoAdjuster';
 
 var helpers = Chart.helpers;
+var rasterize = utils.rasterize;
 
 function boundingRects(size, padding) {
 	var th = size.height;
@@ -39,20 +39,13 @@ function getScaleOrigin(el) {
 	}
 
 	if (scale.xCenter !== undefined && scale.yCenter !== undefined) {
-		return {
-			x: scale.xCenter,
-			y: scale.yCenter
-		};
+		return {x: scale.xCenter, y: scale.yCenter};
 	}
 
 	var pixel = scale.getBasePixel();
-	return horizontal ? {
-		x: pixel,
-		y: null
-	} : {
-		x: null,
-		y: pixel
-	};
+	return horizontal ?
+		{x: pixel, y: null} :
+		{x: null, y: pixel};
 }
 
 function getPositioner(el) {
@@ -68,19 +61,14 @@ function getPositioner(el) {
 	return positioners.fallback;
 }
 
-
 function coordinates(el, model, rect) {
-	model = autoAdjuster(el, model);
 	var point = model.positioner(el._view, model.anchor, model.align, model.origin);
 	var vx = point.vx;
 	var vy = point.vy;
 
 	if (!vx && !vy) {
 		// if aligned center, we don't want to offset the center point
-		return {
-			x: point.x,
-			y: point.y
-		};
+		return {x: point.x, y: point.y};
 	}
 
 	// include borders to the bounding rect
@@ -122,10 +110,10 @@ function drawFrame(ctx, rect, model) {
 
 	helpers.canvas.roundedRect(
 		ctx,
-		Math.round(rect.x) - borderWidth / 2,
-		Math.round(rect.y) - borderWidth / 2,
-		Math.round(rect.w) + borderWidth,
-		Math.round(rect.h) + borderWidth,
+		rasterize(rect.x) - borderWidth / 2,
+		rasterize(rect.y) - borderWidth / 2,
+		rasterize(rect.w) + borderWidth,
+		rasterize(rect.h) + borderWidth,
 		model.borderRadius);
 
 	ctx.closePath();
@@ -172,9 +160,9 @@ function drawText(ctx, lines, rect, model) {
 	for (i = 0; i < ilen; ++i) {
 		ctx.fillText(
 			lines[i],
-			Math.round(x),
-			Math.round(y),
-			Math.round(rect.w));
+			rasterize(x),
+			rasterize(y),
+			rasterize(rect.w));
 
 		y += lh;
 	}
@@ -208,6 +196,7 @@ helpers.extend(Label.prototype, {
 			borderColor: resolve([config.borderColor, null], context, index),
 			borderRadius: resolve([config.borderRadius, 0], context, index),
 			borderWidth: resolve([config.borderWidth, 0], context, index),
+			clip: resolve([config.clip, false], context, index),
 			color: resolve([config.color, Chart.defaults.global.defaultFontColor], context, index),
 			font: font,
 			lines: lines,
@@ -218,8 +207,7 @@ helpers.extend(Label.prototype, {
 			positioner: getPositioner(me._el),
 			rotation: resolve([config.rotation, 0], context, index) * (Math.PI / 180),
 			size: utils.textSize(me._ctx, lines, font),
-			textAlign: resolve([config.textAlign, 'start'], context, index),
-			autoAdjust: resolve([config.autoAdjust, false], context, index)
+			textAlign: resolve([config.textAlign, 'start'], context, index)
 		};
 	},
 
@@ -240,10 +228,11 @@ helpers.extend(Label.prototype, {
 		me._model = model;
 	},
 
-	draw: function(ctx) {
+	draw: function(chart) {
 		var me = this;
+		var ctx = chart.ctx;
 		var model = me._model;
-		var rects, center;
+		var rects, center, area;
 
 		if (!model || !model.opacity) {
 			return;
@@ -254,8 +243,20 @@ helpers.extend(Label.prototype, {
 		me._hitbox.update(center, rects.frame, model.rotation);
 
 		ctx.save();
+
+		if (model.clip) {
+			area = chart.chartArea;
+			ctx.beginPath();
+			ctx.rect(
+				area.left,
+				area.top,
+				area.right - area.left,
+				area.bottom - area.top);
+			ctx.clip();
+		}
+
 		ctx.globalAlpha = utils.bound(0, model.opacity, 1);
-		ctx.translate(Math.round(center.x), Math.round(center.y));
+		ctx.translate(rasterize(center.x), rasterize(center.y));
 		ctx.rotate(model.rotation);
 
 		drawFrame(ctx, rects.frame, model);
