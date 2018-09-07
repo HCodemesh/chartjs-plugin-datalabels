@@ -4,6 +4,7 @@ import Chart from 'chart.js';
 import HitBox from './hitbox';
 import utils from './utils';
 import positioners from './positioners';
+import autoAdjuster from './autoAdjuster';
 
 var helpers = Chart.helpers;
 var rasterize = utils.rasterize;
@@ -62,6 +63,7 @@ function getPositioner(el) {
 }
 
 function coordinates(el, model, rect) {
+	model = autoAdjuster(el, model);
 	var point = model.positioner(el._view, model.anchor, model.align, model.origin);
 	var vx = point.vx;
 	var vy = point.vy;
@@ -207,7 +209,8 @@ helpers.extend(Label.prototype, {
 			positioner: getPositioner(me._el),
 			rotation: resolve([config.rotation, 0], context, index) * (Math.PI / 180),
 			size: utils.textSize(me._ctx, lines, font),
-			textAlign: resolve([config.textAlign, 'start'], context, index)
+			textAlign: resolve([config.textAlign, 'start'], context, index),
+			autoAdjust: resolve([config.autoAdjust, false], context, index)
 		};
 	},
 
